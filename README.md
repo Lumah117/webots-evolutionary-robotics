@@ -98,6 +98,158 @@ The project consists of two principal runtime components:
 
 The Supervisor manages the evolutionary process while the robot controller evaluates each candidate neural-network controller through interaction with the simulated environment.
 
+## Behaviour-Based Controller
+
+The repository also contains a manually designed behaviour-based robot controller.
+
+Unlike the evolutionary controller, where motor behaviour emerges from neural-network weights optimised by the genetic algorithm, the BBR controller explicitly defines how the robot should respond to different sensor conditions.
+
+The controller integrates:
+
+- 3 ground sensors
+- 8 proximity sensors
+- 4 light sensors
+- Differential-drive motors
+
+The resulting sensor-processing architecture is:
+
+```text
+                  SENSOR INPUTS
+                       │
+       ┌───────────────┼───────────────┐
+       │               │               │
+       ▼               ▼               ▼
+ Ground Sensors   Proximity Sensors  Light Sensors
+       │               │               │
+       ▼               ▼               ▼
+ Line Following   Obstacle Detection  Beacon Detection
+       │               │               │
+       └───────────────┼───────────────┘
+                       ▼
+                Behaviour Logic
+                       │
+                       ▼
+               Left / Right Motor
+                    Commands
+```
+
+### Line Following
+
+The three ground sensors represent the left, centre and right regions beneath the robot.
+
+The controller compares these readings to determine the required steering behaviour.
+
+Conceptually:
+
+```text
+Left strongest     -> steer right
+Centre strongest   -> move forward
+Right strongest    -> steer left
+```
+
+This produces a simple reactive line-following controller using differential wheel speeds.
+
+### Obstacle Detection and Avoidance
+
+The eight proximity sensors monitor the environment surrounding the robot.
+
+When the proximity measurements exceed the configured detection threshold, the controller identifies an obstacle and transitions from normal line-following behaviour into obstacle avoidance.
+
+The controller then manoeuvres around the obstacle while monitoring the ground sensors for the line.
+
+Once the line is detected again, normal navigation can resume.
+
+```text
+Follow Line
+    │
+    ▼
+Obstacle Detected?
+    │
+   Yes
+    │
+    ▼
+Avoid Obstacle
+    │
+    ▼
+Search for Line
+    │
+    ▼
+Line Reacquired
+    │
+    ▼
+Resume Navigation
+```
+
+The controller also maintains an obstacle count so that previous interactions can influence subsequent route behaviour.
+
+### Beacon-Based Route Selection
+
+Four light sensors provide information used for beacon detection.
+
+The beacon state influences which route the robot selects when reaching a fork in the course.
+
+The controller maintains separate state flags representing Route A and Route B behaviour.
+
+Conceptually:
+
+```text
+             Reach Fork
+                 │
+          Detect Beacon State
+                 │
+          ┌──────┴──────┐
+          │             │
+      Beacon On     Beacon Off
+          │             │
+          ▼             ▼
+       Route A       Route B
+```
+
+This introduces environmental context into the navigation behaviour rather than relying solely on line-following information.
+
+### Behaviour State
+
+Several internal flags are used to maintain information about the robot's current behaviour, including:
+
+- Whether an obstacle has been detected
+- Whether the robot has returned to the line
+- Whether an obstacle was previously encountered
+- Number of obstacles cleared
+- Beacon state
+- Fork-turn state
+- Route A / Route B selection
+
+This allows the controller to combine reactive sensor responses with a limited amount of behavioural state.
+
+## Behaviour-Based vs Evolutionary Control
+
+Having both controllers provides a useful comparison between two approaches to autonomous robot behaviour.
+
+```text
+BEHAVIOUR-BASED CONTROL
+          │
+          ├── Human-designed rules
+          ├── Explicit thresholds
+          ├── Explicit behaviours
+          ├── Predictable decisions
+          └── Manual tuning
+
+
+EVOLUTIONARY CONTROL
+          │
+          ├── Neural network
+          ├── Sensor-to-motor mapping
+          ├── Fitness function
+          ├── Genetic algorithm
+          └── Evolved parameters
+```
+
+The behaviour-based controller explicitly encodes how the robot should respond to particular sensor conditions.
+
+The evolutionary controller instead defines an objective through its fitness function and allows the optimisation process to search for neural-network weights that produce useful behaviour.
+
+Exploring both approaches provided practical experience with the trade-off between directly engineering autonomous behaviour and allowing control behaviour to emerge through optimisation.
+
 ## Neural Network
 
 The robot controller uses a multilayer perceptron with the architecture:
